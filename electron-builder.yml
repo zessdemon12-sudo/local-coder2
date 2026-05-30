@@ -1,0 +1,30 @@
+appId: com.local-coder.app
+productName: Local Coder
+directories:
+  buildResources: resources
+  output: dist
+icon: resources/icon.png
+files:
+  - out/**/*
+  - "!node_modules/**/*"
+asar: false
+extraResources:
+  - from: bin
+    to: bin
+
+compression: store
+win:
+  icon: resources/icon.png
+  target:
+    - portable
+    - nsis
+  signAndEditExecutable: false
+  signDlls: false
+linux:
+  icon: resources/icon.png
+  target:
+    - AppImage
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true

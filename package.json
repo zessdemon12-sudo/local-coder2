@@ -1,0 +1,60 @@
+{
+  "name": "local-coder",
+  "version": "1.0.0",
+  "description": "Fully local LLM coding agent with direct GGUF model loading",
+  "main": "./out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview",
+    "postinstall": "electron-builder install-app-deps",
+    "build:llama": "node node_modules/node-llama-cpp/dist/cli/cli.js build",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder"
+  },
+  "dependencies": {
+    "@codemirror/autocomplete": "^6.0.0",
+    "@codemirror/commands": "^6.0.0",
+    "@codemirror/lang-cpp": "^6.0.0",
+    "@codemirror/lang-css": "^6.0.0",
+    "@codemirror/lang-html": "^6.0.0",
+    "@codemirror/lang-java": "^6.0.0",
+    "@codemirror/lang-javascript": "^6.0.0",
+    "@codemirror/lang-json": "^6.0.0",
+    "@codemirror/lang-markdown": "^6.0.0",
+    "@codemirror/lang-python": "^6.0.0",
+    "@codemirror/lang-rust": "^6.0.0",
+    "@codemirror/lang-sql": "^6.0.0",
+    "@codemirror/lang-xml": "^6.0.0",
+    "@codemirror/language": "^6.0.0",
+    "@codemirror/lint": "^6.0.0",
+    "@codemirror/search": "^6.0.0",
+    "@codemirror/state": "^6.0.0",
+    "@codemirror/theme-one-dark": "^6.0.0",
+    "@codemirror/view": "^6.0.0",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@monaco-editor/react": "^4.7.0",
+    "codemirror": "^6.0.1",
+    "monaco-editor": "^0.55.1",
+    "node-llama-cpp": "^3.18.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-markdown": "^9.0.0",
+    "rehype-highlight": "^7.0.0",
+    "sql.js": "^1.10.0",
+    "zustand": "^4.5.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.0",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.0",
+    "electron": "^28.3.3",
+    "electron-builder": "^24.13.3",
+    "electron-vite": "^2.3.0",
+    "typescript": "^5.5.4",
+    "vite": "^5.4.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
