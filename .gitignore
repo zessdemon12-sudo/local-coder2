@@ -5,6 +5,14 @@ dist/
 *.log
 localBuilds/
 bin/
+dist/
+out/
 *.zip
+*.log
 build-appimage.bat
 run-elevated.vbs
+android-rn/node_modules/
+android-rn/android/.gradle/
+android-rn/android/app/build/
+android-rn/android/build/
+*.so

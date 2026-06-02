@@ -26,9 +26,6 @@ declare global {
       sttTranscribe: (audioBase64: string) => Promise<{ success: boolean; text?: string; error?: string }>
       sttStop: () => Promise<{ success: boolean }>
       // MCP Server (for opencode)
-      mcpServerStart: () => Promise<{ success: boolean; port?: number; error?: string }>
-      mcpServerStop: () => Promise<{ success: boolean }>
-      mcpServerStatus: () => Promise<{ success: boolean; running: boolean; port: number }>
     }
   }
 }

@@ -37,9 +37,6 @@ const api = {
   sttTranscribe: (audioBase64: string) => ipcRenderer.invoke('stt-transcribe', { audioBase64 }),
   sttStop: () => ipcRenderer.invoke('stt-stop'),
   // MCP Server (for opencode)
-  mcpServerStart: () => ipcRenderer.invoke('mcp-server-start'),
-  mcpServerStop: () => ipcRenderer.invoke('mcp-server-stop'),
-  mcpServerStatus: () => ipcRenderer.invoke('mcp-server-status'),
 }
 
 contextBridge.exposeInMainWorld('electronApi', api)

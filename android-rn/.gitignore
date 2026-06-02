@@ -1,0 +1,12 @@
+node_modules/
+android/app/build/
+android/build/
+android/.gradle/
+android/app/src/main/jniLibs/
+*.so
+*.a
+.gradle/
+local.properties
+*.hprof
+*.keystore
+!.debug.keystore

@@ -1,0 +1,18 @@
+export const theme = {
+  bg: '#1a1b1e',
+  bgSecondary: '#25262b',
+  bgTertiary: '#2c2e33',
+  bgHover: '#373a40',
+  text: '#c1c2c5',
+  textSecondary: '#909296',
+  textMuted: '#5c5f66',
+  accent: '#4c9aff',
+  danger: '#ff6b6b',
+  success: '#51cf66',
+  warning: '#fcc419',
+  border: '#373a40',
+  radius: 6,
+  radiusLg: 10,
+  fontMono: 'monospace',
+  fontSans: 'System',
+}
