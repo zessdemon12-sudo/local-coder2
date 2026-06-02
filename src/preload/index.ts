@@ -30,8 +30,8 @@ const api = {
   mcpGetServers: () => ipcRenderer.invoke('mcp-get-servers'),
   mcpGetTools: () => ipcRenderer.invoke('mcp-get-tools'),
   // TTS
-  ttsSynthesize: (text: string, modelPath: string, vocoderPath?: string) =>
-    ipcRenderer.invoke('tts-synthesize', { text, modelPath, vocoderPath }),
+  ttsSynthesize: (text: string, modelPath: string, vocoderPath?: string, backend?: string) =>
+    ipcRenderer.invoke('tts-synthesize', { text, modelPath, vocoderPath, backend }),
   ttsStop: () => ipcRenderer.invoke('tts-stop'),
 }
 

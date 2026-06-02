@@ -23,11 +23,12 @@ export function MessageBubble({ index, message, isStreaming, isSpeaking }: Messa
   const setTtsState = useAppStore(s => s.setTtsState)
 
   const handleSpeak = useCallback(async () => {
-    if (!tts.modelPath || isSpeaking) return
+    if (tts.backend === 'llama-tts' && !tts.modelPath) return
+    if (isSpeaking) return
     setTtsState({ speakingMessageIndex: index, speaking: true })
     try {
       const api = (window as any).electronApi
-      const res = await api.ttsSynthesize(message.content, tts.modelPath, tts.vocoderPath || undefined)
+      const res = await api.ttsSynthesize(message.content, tts.modelPath || '', tts.vocoderPath || undefined, tts.backend)
       if (res.success && res.audio) {
         const audio = new Audio(`data:audio/wav;base64,${res.audio}`)
         audio.onended = () => setTtsState({ speakingMessageIndex: null, speaking: false })
@@ -39,7 +40,7 @@ export function MessageBubble({ index, message, isStreaming, isSpeaking }: Messa
     } catch {
       setTtsState({ speakingMessageIndex: null, speaking: false })
     }
-  }, [message.content, tts.modelPath, tts.vocoderPath, index, isSpeaking, setTtsState])
+  }, [message.content, tts.modelPath, tts.vocoderPath, tts.backend, index, isSpeaking, setTtsState])
 
   return (
     <div style={{
@@ -136,18 +137,20 @@ export function MessageBubble({ index, message, isStreaming, isSpeaking }: Messa
             {!isStreaming && (
               <button
                 onClick={handleSpeak}
-                disabled={!tts.modelPath || isSpeaking}
+                disabled={
+                  (tts.backend === 'llama-tts' && !tts.modelPath) || isSpeaking
+                }
                 title={
                   isSpeaking ? 'Speaking...'
-                  : !tts.modelPath ? 'Configure TTS model in Settings'
+                  : tts.backend === 'llama-tts' && !tts.modelPath ? 'Configure TTS model in Settings'
                   : 'Read aloud'
                 }
                 style={{
                   background: 'none', border: 'none',
-                  cursor: !tts.modelPath || isSpeaking ? 'default' : 'pointer',
+                  cursor: (tts.backend === 'llama-tts' && !tts.modelPath) || isSpeaking ? 'default' : 'pointer',
                   fontSize: 13, padding: '2px 4px', marginTop: 4,
                   display: 'inline-flex', alignItems: 'center',
-                  opacity: !tts.modelPath ? 0.2 : isSpeaking ? 0.4 : 0.5,
+                  opacity: (tts.backend === 'llama-tts' && !tts.modelPath) ? 0.2 : isSpeaking ? 0.4 : 0.5,
                   transition: 'opacity 0.15s',
                   color: 'var(--text-muted)'
                 }}

@@ -167,12 +167,12 @@ function TtsConfig() {
   }
 
   const handleTest = async () => {
-    if (!tts.modelPath) return
+    if (tts.backend === 'llama-tts' && !tts.modelPath) return
     setStatus('speaking')
     setErrorMsg('')
     try {
       const api = (window as any).electronApi
-      const res = await api.ttsSynthesize('Hello, this is a test of the text to speech system.', tts.modelPath, tts.vocoderPath || undefined)
+      const res = await api.ttsSynthesize('Hello, this is a test of the text to speech system.', tts.modelPath || '', tts.vocoderPath || undefined, tts.backend)
       if (res.success && res.audio) {
         const audio = new Audio(`data:audio/wav;base64,${res.audio}`)
         audio.onended = () => setStatus('idle')
@@ -190,7 +190,20 @@ function TtsConfig() {
 
   const statusColor = status === 'speaking' ? 'var(--accent)'
     : status === 'error' ? 'var(--danger)'
+    : tts.backend === 'edge-tts' ? 'var(--success)'
     : tts.modelPath ? 'var(--success)' : 'var(--text-muted)'
+
+  const backendRadioStyle: (active: boolean) => React.CSSProperties = (active) => ({
+    flex: 1,
+    padding: '8px 12px',
+    borderRadius: 'var(--radius)',
+    border: active ? '1px solid var(--accent)' : '1px solid var(--border)',
+    background: active ? 'rgba(99,102,241,0.1)' : 'transparent',
+    color: active ? 'var(--accent)' : 'var(--text-secondary)',
+    fontSize: 12,
+    cursor: 'pointer',
+    textAlign: 'center'
+  })
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -198,58 +211,90 @@ function TtsConfig() {
         <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, color: 'var(--text-primary)' }}>
           Text-to-Speech
         </h3>
-        <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 12 }}>
-          Uses bundled llama-tts.exe with a user-provided TTS GGUF model.
-          Select your model file below — no auto-download.
-        </p>
 
-        <div style={{
-          display: 'inline-flex', alignItems: 'center', gap: 6,
-          padding: '4px 10px', borderRadius: 6,
-          border: '1px solid var(--border)', background: 'var(--bg-tertiary)',
-          fontSize: 12, marginBottom: 12
-        }}>
-          <span style={{ width: 8, height: 8, borderRadius: '50%', background: statusColor, display: 'inline-block' }} />
-          <span>TTS: {status}</span>
-          {tts.modelPath && <span style={{ color: 'var(--text-muted)', marginLeft: 4 }}>
-            ({tts.modelPath.split('\\').pop()})
-          </span>}
+        <div style={{ fontSize: 12, fontWeight: 500, marginBottom: 8, color: 'var(--text-secondary)' }}>
+          Backend
         </div>
-        {errorMsg && (
-          <div style={{
-            fontSize: 11, color: 'var(--danger)', marginBottom: 8,
-            padding: '6px 10px', borderRadius: 6,
-            background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)',
-            wordBreak: 'break-all', fontFamily: 'var(--font-mono)'
-          }}>
-            {errorMsg}
-          </div>
-        )}
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <button onClick={handleSelectModel} style={buttonStyle}>
-            {tts.modelPath ? 'Change TTS Model' : 'Select TTS GGUF Model'}
+        <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+          <button onClick={() => setTtsState({ backend: 'edge-tts' })} style={backendRadioStyle(tts.backend === 'edge-tts')}>
+            Edge TTS
           </button>
-          <div style={{ display: 'flex', gap: 6 }}>
-            <button onClick={handleSelectVocoder} style={buttonStyleAlt}>
-              {tts.vocoderPath ? 'Change Vocoder' : 'Select Vocoder GGUF (optional)'}
-            </button>
-            {tts.vocoderPath && (
-              <span style={{ fontSize: 11, color: 'var(--text-muted)', alignSelf: 'center' }}>
-                {tts.vocoderPath.split('\\').pop()}
-              </span>
+          <button onClick={() => setTtsState({ backend: 'llama-tts' })} style={backendRadioStyle(tts.backend === 'llama-tts')}>
+            llama-tts
+          </button>
+        </div>
+
+        {tts.backend === 'edge-tts' ? (
+          <>
+            <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 12 }}>
+              Uses Microsoft Edge's online TTS service via the <code>edge-tts</code> Python package.
+              No model files required. Requires an internet connection.
+            </p>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-tertiary)', fontSize: 12, marginBottom: 12 }}>
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: statusColor, display: 'inline-block' }} />
+              <span>Edge TTS: {status === 'speaking' ? 'playing' : 'ready'}</span>
+            </div>
+            {errorMsg && (
+              <div style={{ fontSize: 11, color: 'var(--danger)', marginBottom: 8, padding: '6px 10px', borderRadius: 6, background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', wordBreak: 'break-all', fontFamily: 'var(--font-mono)' }}>
+                {errorMsg}
+              </div>
             )}
-          </div>
-          <button onClick={handleTest} disabled={!tts.modelPath || status === 'speaking'}
-            style={{
-              ...buttonStyle,
-              opacity: !tts.modelPath || status === 'speaking' ? 0.5 : 1,
-              cursor: !tts.modelPath || status === 'speaking' ? 'not-allowed' : 'pointer',
-              background: 'var(--accent)', color: '#fff', border: 'none'
-            }}>
-            {status === 'speaking' ? 'Playing...' : 'Test TTS'}
-          </button>
-        </div>
+            <button onClick={handleTest} disabled={status === 'speaking'}
+              style={{
+                ...buttonStyle,
+                opacity: status === 'speaking' ? 0.5 : 1,
+                cursor: status === 'speaking' ? 'not-allowed' : 'pointer',
+                background: 'var(--accent)', color: '#fff', border: 'none'
+              }}>
+              {status === 'speaking' ? 'Playing...' : 'Test TTS'}
+            </button>
+          </>
+        ) : (
+          <>
+            <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 12 }}>
+              Uses bundled llama-tts.exe with a user-provided TTS GGUF model (e.g. OuteTTS).
+              Select your model file below — no auto-download.
+            </p>
+
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-tertiary)', fontSize: 12, marginBottom: 12 }}>
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: statusColor, display: 'inline-block' }} />
+              <span>llama-tts: {status}</span>
+              {tts.modelPath && <span style={{ color: 'var(--text-muted)', marginLeft: 4 }}>
+                ({tts.modelPath.split('\\').pop()})
+              </span>}
+            </div>
+            {errorMsg && (
+              <div style={{ fontSize: 11, color: 'var(--danger)', marginBottom: 8, padding: '6px 10px', borderRadius: 6, background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', wordBreak: 'break-all', fontFamily: 'var(--font-mono)' }}>
+                {errorMsg}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <button onClick={handleSelectModel} style={buttonStyle}>
+                {tts.modelPath ? 'Change TTS Model' : 'Select TTS GGUF Model'}
+              </button>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button onClick={handleSelectVocoder} style={buttonStyleAlt}>
+                  {tts.vocoderPath ? 'Change Vocoder' : 'Select Vocoder GGUF (optional)'}
+                </button>
+                {tts.vocoderPath && (
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)', alignSelf: 'center' }}>
+                    {tts.vocoderPath.split('\\').pop()}
+                  </span>
+                )}
+              </div>
+              <button onClick={handleTest} disabled={!tts.modelPath || status === 'speaking'}
+                style={{
+                  ...buttonStyle,
+                  opacity: !tts.modelPath || status === 'speaking' ? 0.5 : 1,
+                  cursor: !tts.modelPath || status === 'speaking' ? 'not-allowed' : 'pointer',
+                  background: 'var(--accent)', color: '#fff', border: 'none'
+                }}>
+                {status === 'speaking' ? 'Playing...' : 'Test TTS'}
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   )

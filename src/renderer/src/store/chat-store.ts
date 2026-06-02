@@ -33,6 +33,7 @@ interface TtsState {
   vocoderPath: string | null
   speaking: boolean
   speakingMessageIndex: number | null
+  backend: 'edge-tts' | 'llama-tts'
 }
 
 interface AppState {
@@ -75,7 +76,7 @@ export const useAppStore = create<AppState>((set) => ({
   sidebarOpen: true,
   showSettings: false,
   editorPreference: 'codemirror',
-  tts: { modelPath: null, vocoderPath: null, speaking: false, speakingMessageIndex: null },
+  tts: { modelPath: null, vocoderPath: null, speaking: false, speakingMessageIndex: null, backend: 'edge-tts' },
 
   addMessage: (msg) => set((s) => ({ messages: [...s.messages, msg] })),
   setStreamingContent: (content) => set({ streamingContent: content }),
@@ -93,6 +94,6 @@ export const useAppStore = create<AppState>((set) => ({
     streamingContent: '',
     isStreaming: false,
     isProcessing: false,
-    tts: { modelPath: null, vocoderPath: null, speaking: false, speakingMessageIndex: null }
+    tts: { modelPath: null, vocoderPath: null, speaking: false, speakingMessageIndex: null, backend: 'edge-tts' }
   })
 }))

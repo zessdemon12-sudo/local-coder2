@@ -20,7 +20,7 @@ declare global {
       mcpGetServers: () => Promise<{ success: boolean; servers?: any[] }>
       mcpGetTools: () => Promise<{ success: boolean; tools?: any[] }>
       // TTS
-      ttsSynthesize: (text: string, modelPath: string, vocoderPath?: string) => Promise<{ success: boolean; audio?: string; error?: string }>
+      ttsSynthesize: (text: string, modelPath: string, vocoderPath?: string, backend?: string) => Promise<{ success: boolean; audio?: string; error?: string }>
       ttsStop: () => Promise<{ success: boolean }>
     }
   }

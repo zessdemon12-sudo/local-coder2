@@ -1,6 +1,7 @@
 import { ipcMain, dialog, shell, BrowserWindow } from 'electron'
-import { existsSync } from 'fs'
-import { networkInterfaces } from 'os'
+import { existsSync, readFileSync, writeFileSync, unlinkSync, mkdtempSync, rmdirSync } from 'fs'
+import { tmpdir, networkInterfaces } from 'os'
+import { join } from 'path'
 import { exec as execCb } from 'child_process'
 import { promisify } from 'util'
 import { ModelEngine, ModelConfig } from './model-engine'
@@ -154,8 +155,21 @@ export function registerIpcHandlers(): void {
 
   // --- TTS handlers ---
 
-  ipcMain.handle('tts-synthesize', async (_event, data: { text: string; modelPath: string; vocoderPath?: string }) => {
+  ipcMain.handle('tts-synthesize', async (_event, data: { text: string; modelPath?: string; vocoderPath?: string; backend?: string }) => {
     try {
+      if (data.backend === 'edge-tts') {
+        const tmpDir = mkdtempSync(join(tmpdir(), 'tts-'))
+        const textFile = join(tmpDir, 'text.txt')
+        const outFile = join(tmpDir, 'out.wav')
+        writeFileSync(textFile, data.text, 'utf-8')
+        const cmd = `edge-tts --file "${textFile}" --voice en-US-JennyNeural --write-media "${outFile}"`
+        await exec(cmd, { timeout: 60000 })
+        const wav = readFileSync(outFile)
+        const base64 = wav.toString('base64')
+        try { unlinkSync(textFile); unlinkSync(outFile); rmdirSync(tmpDir) } catch {}
+        return { success: true, audio: base64 }
+      }
+
       if (!data.modelPath || !data.modelPath.trim()) throw new Error(`TTS model path is empty (received: "${data.modelPath}")`)
       if (!existsSync(data.modelPath)) throw new Error(`TTS model file not found: ${data.modelPath}`)
       ttsEngine?.stop()
