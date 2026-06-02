@@ -4,3 +4,7 @@ dist/
 .DS_Store
 *.log
 localBuilds/
+bin/
+*.zip
+build-appimage.bat
+run-elevated.vbs

@@ -12,6 +12,7 @@ export function ModelSetup() {
   const [gpuLayers, setGpuLayers] = useState(0)
   const [mmprojPath, setMmprojPath] = useState('')
   const [localNetwork, setLocalNetwork] = useState(false)
+  const [serveApiKey, setServeApiKey] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -38,7 +39,7 @@ export function ModelSetup() {
 
       const config = mode === 'openai'
         ? { backend: 'openai', apiUrl, apiKey, modelName, contextSize }
-        : { backend: 'llama-server', modelPath, mmprojPath, contextSize, gpuLayers, localNetwork }
+        : { backend: 'llama-server', modelPath, mmprojPath, contextSize, gpuLayers, localNetwork, apiKey: serveApiKey }
 
       const result = await api.initModel(config)
       if (result.success) {
@@ -197,6 +198,18 @@ export function ModelSetup() {
                 <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
                   Serve on local network
                 </span>
+              </div>
+            )}
+            {mode === 'llama-server' && (
+              <div>
+                <label style={labelStyle}>API Key (for remote clients)</label>
+                <input
+                  type="password"
+                  value={serveApiKey}
+                  onChange={e => setServeApiKey(e.target.value)}
+                  placeholder="Optional — clients must send this as Bearer token"
+                  style={inputStyle}
+                />
               </div>
             )}
             <div>

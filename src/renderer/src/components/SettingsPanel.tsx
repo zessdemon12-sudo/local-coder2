@@ -390,6 +390,14 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
                   {modelStatus.config.modelPath?.split('\\').pop() || 'N/A'}
                 </div>
               )}
+              {modelStatus.config?.apiKey && (
+                <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 4 }}>
+                  <span style={{ color: 'var(--text-muted)' }}>API Key: </span>
+                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11 }}>
+                    {modelStatus.config.apiKey.slice(0, 8)}...
+                  </span>
+                </div>
+              )}
               <button onClick={handleDisconnect} style={{
                 marginTop: 8,
                 padding: '6px 14px',

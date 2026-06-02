@@ -107,6 +107,9 @@ export class ModelEngine {
     if (this.config.mmprojPath) {
       args.push('--mmproj', this.config.mmprojPath)
     }
+    if (this.config.apiKey) {
+      args.push('--api-key', this.config.apiKey)
+    }
 
     this.serverProcess = spawn(serverPath, args, { stdio: 'pipe' })
     let stderrLog = ''
