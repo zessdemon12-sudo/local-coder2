@@ -1,4 +1,4 @@
-export type ModelBackend = 'openai' | 'llama-server'
+export type ModelBackend = 'openai' | 'llama-server' | 'openrouter'
 
 export interface ModelConfig {
   backend: ModelBackend
@@ -65,7 +65,11 @@ export class ModelEngine {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(this.config.apiKey ? { Authorization: `Bearer ${this.config.apiKey}` } : {})
+          ...(this.config.apiKey ? { Authorization: `Bearer ${this.config.apiKey}` } : {}),
+          ...(this.config.backend === 'openrouter' ? {
+            'HTTP-Referer': 'http://localhost:8090',
+            'X-Title': 'Local Coder'
+          } : {})
         },
         body: JSON.stringify({
           model: this.config.modelName || 'default',
@@ -252,7 +256,11 @@ export class ModelEngine {
         headers: {
           'Content-Type': 'application/json',
           'Content-Length': Buffer.byteLength(bodyStr),
-          ...(this.config.apiKey ? { Authorization: `Bearer ${this.config.apiKey}` } : {})
+          ...(this.config.apiKey ? { Authorization: `Bearer ${this.config.apiKey}` } : {}),
+          ...(this.config.backend === 'openrouter' ? {
+            'HTTP-Referer': 'http://localhost:8090',
+            'X-Title': 'Local Coder'
+          } : {})
         },
         timeout: 120000
       }

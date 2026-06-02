@@ -300,8 +300,85 @@ function TtsConfig() {
   )
 }
 
+function OpenCodeConfig() {
+  const [running, setRunning] = useState(false)
+  const [toggling, setToggling] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    (window as any).electronApi?.mcpServerStatus().then((r: any) => {
+      if (r.success) setRunning(r.running)
+    }).catch(() => {})
+  }, [])
+
+  const handleToggle = async () => {
+    setToggling(true)
+    setError('')
+    try {
+      const api = (window as any).electronApi
+      const res = running ? await api.mcpServerStop() : await api.mcpServerStart()
+      if (res.success) setRunning(!running)
+      else setError(res.error || 'Failed')
+    } catch (err) {
+      setError(String(err))
+    }
+    setToggling(false)
+  }
+
+  return (
+    <div>
+      <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, color: 'var(--text-primary)' }}>
+        opencode MCP Server
+      </h3>
+      <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 12 }}>
+        Expose Local Coder as an MCP server so opencode (or any MCP client) can connect.
+        Add the following to your opencode config:
+      </p>
+      <pre style={{
+        fontSize: 11, padding: '8px 10px', borderRadius: 'var(--radius)',
+        background: 'var(--bg-tertiary)', border: '1px solid var(--border)',
+        marginBottom: 12, whiteSpace: 'pre-wrap', wordBreak: 'break-all',
+        fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)'
+      }}>
+{`{
+  "mcpServers": {
+    "local-coder": {
+      "type": "sse",
+      "url": "http://localhost:8091/sse"
+    }
+  }
+}`}
+      </pre>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <button onClick={handleToggle} disabled={toggling}
+          style={{
+            width: 40, height: 22, borderRadius: 11,
+            border: running ? '1px solid var(--success)' : '1px solid var(--border)',
+            background: running ? 'var(--success)' : 'var(--bg-tertiary)',
+            cursor: toggling ? 'wait' : 'pointer', position: 'relative',
+            transition: 'background 0.2s'
+          }}>
+          <span style={{
+            position: 'absolute', top: 2, width: 16, height: 16,
+            borderRadius: '50%', background: '#fff',
+            left: running ? 22 : 2, transition: 'left 0.2s'
+          }} />
+        </button>
+        <span style={{ fontSize: 12, color: running ? 'var(--success)' : 'var(--text-secondary)' }}>
+          {running ? 'Running on port 8091' : 'Stopped'}
+        </span>
+      </div>
+      {error && (
+        <div style={{ fontSize: 11, color: 'var(--danger)', marginTop: 8, padding: '6px 10px', borderRadius: 6, background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)' }}>
+          {error}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function SettingsPanel({ onClose }: SettingsPanelProps) {
-  const [tab, setTab] = useState<'general' | 'models' | 'mcp' | 'tts'>('general')
+  const [tab, setTab] = useState<'general' | 'models' | 'mcp' | 'tts' | 'opencode'>('general')
   const modelStatus = useAppStore(s => s.modelStatus)
   const setModelStatus = useAppStore(s => s.setModelStatus)
   const editorPreference = useAppStore(s => s.editorPreference)
@@ -364,7 +441,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
       </div>
 
       <div style={{ display: 'flex', borderBottom: '1px solid var(--border)' }}>
-        {(['general', 'models', 'mcp', 'tts'] as const).map(t => (
+        {(['general', 'models', 'mcp', 'tts', 'opencode'] as const).map(t => (
           <button key={t}
             onClick={() => setTab(t)}
             style={{
@@ -379,7 +456,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
               textTransform: 'capitalize'
             }}
           >
-            {t === 'mcp' ? 'MCP' : t === 'tts' ? 'TTS' : t}
+            {t === 'mcp' ? 'MCP' : t === 'tts' ? 'TTS' : t === 'opencode' ? 'openCode' : t}
           </button>
         ))}
       </div>
@@ -568,6 +645,8 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
           <ModelDownloaderView />
         ) : tab === 'tts' ? (
           <TtsConfig />
+        ) : tab === 'opencode' ? (
+          <OpenCodeConfig />
         ) : (
           <McpConfig />
         )}

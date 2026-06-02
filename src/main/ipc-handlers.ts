@@ -8,6 +8,8 @@ import { ModelEngine, ModelConfig } from './model-engine'
 import { AgentLoop, AgentEvent } from './agent-loop'
 import { mcpManager, McpServerConfig } from './mcp-manager'
 import { TtsEngine } from './tts-engine'
+import { SttEngine } from './stt-engine'
+import { McpServerProvider } from './mcp-server-provider'
 
 const exec = promisify(execCb)
 
@@ -34,6 +36,8 @@ let engine: ModelEngine | null = null
 let agent: AgentLoop | null = null
 let currentWindow: BrowserWindow | null = null
 let ttsEngine: TtsEngine | null = null
+let sttEngine: SttEngine | null = null
+let mcpServerProvider: McpServerProvider | null = null
 
 export function registerIpcHandlers(): void {
 
@@ -187,7 +191,48 @@ export function registerIpcHandlers(): void {
     return { success: true }
   })
 
-  // --- MCP handlers ---
+  // --- STT handlers ---
+
+  ipcMain.handle('stt-transcribe', async (_event, data: { audioBase64: string }) => {
+    try {
+      if (!sttEngine) sttEngine = new SttEngine('tiny')
+      const text = await sttEngine.transcribe(data.audioBase64)
+      return { success: true, text }
+    } catch (err) {
+      return { success: false, error: String(err) }
+    }
+  })
+
+  ipcMain.handle('stt-stop', async () => {
+    sttEngine?.stop()
+    sttEngine = null
+    return { success: true }
+  })
+
+  // --- MCP Server for opencode handlers ---
+
+  ipcMain.handle('mcp-server-start', async () => {
+    try {
+      if (mcpServerProvider) mcpServerProvider.stop()
+      mcpServerProvider = new McpServerProvider(engine)
+      await mcpServerProvider.start()
+      return { success: true, port: 8091 }
+    } catch (err) {
+      return { success: false, error: String(err) }
+    }
+  })
+
+  ipcMain.handle('mcp-server-stop', async () => {
+    mcpServerProvider?.stop()
+    mcpServerProvider = null
+    return { success: true }
+  })
+
+  ipcMain.handle('mcp-server-status', async () => {
+    return { success: true, running: mcpServerProvider?.isRunning() ?? false, port: 8091 }
+  })
+
+  // --- MCP client handlers ---
 
   ipcMain.handle('mcp-add-server', async (_event, config: McpServerConfig) => {
     try {

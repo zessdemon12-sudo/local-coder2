@@ -122,6 +122,57 @@ export function ChatInput() {
     setPendingDocuments(prev => prev.filter((_, i) => i !== index))
   }
 
+  // --- STT / Voice input ---
+  const [recording, setRecording] = useState(false)
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const chunksRef = useRef<Blob[]>([])
+
+  const handleMicClick = async () => {
+    if (recording) {
+      mediaRecorderRef.current?.stop()
+      setRecording(false)
+      return
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const recorder = new MediaRecorder(stream, { mimeType: 'audio/webm' })
+      mediaRecorderRef.current = recorder
+      chunksRef.current = []
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunksRef.current.push(e.data)
+      }
+
+      recorder.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop())
+        const blob = new Blob(chunksRef.current, { type: 'audio/webm' })
+        const reader = new FileReader()
+        reader.onload = async () => {
+          const base64 = (reader.result as string).split(',')[1]
+          setRecording(false)
+          try {
+            const api = (window as any).electronApi
+            const res = await api.sttTranscribe(base64)
+            if (res.success && res.text) {
+              setInput(prev => (prev ? prev + ' ' : '') + res.text)
+              textRef.current?.focus()
+            }
+          } catch { }
+        }
+        reader.readAsDataURL(blob)
+      }
+
+      recorder.onerror = () => {
+        stream.getTracks().forEach(t => t.stop())
+        setRecording(false)
+      }
+
+      recorder.start()
+      setRecording(true)
+    } catch { }
+  }
+
   const hasAttachments = pendingImages.length > 0 || pendingDocuments.length > 0
   const canSend = input.trim().length > 0 || hasAttachments
 
@@ -197,6 +248,19 @@ export function ChatInput() {
             fontSize: 16, cursor: 'pointer', lineHeight: 1
           }}>
           📄
+        </button>
+        <button onClick={handleMicClick}
+          title={recording ? 'Stop recording' : 'Record audio (STT)'}
+          style={{
+            padding: '10px 10px',
+            borderRadius: 'var(--radius)',
+            border: recording ? '1px solid var(--danger)' : '1px solid var(--border)',
+            background: recording ? 'rgba(239,68,68,0.15)' : 'var(--bg-tertiary)',
+            color: recording ? 'var(--danger)' : 'var(--text-secondary)',
+            fontSize: 16, cursor: 'pointer', lineHeight: 1,
+            animation: recording ? 'pulse 1s infinite' : 'none'
+          }}>
+          🎤
         </button>
         <textarea
           ref={textRef}

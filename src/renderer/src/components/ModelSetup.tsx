@@ -3,7 +3,7 @@ import { useAppStore } from '../store/chat-store'
 
 export function ModelSetup() {
   const setModelStatus = useAppStore(s => s.setModelStatus)
-  const [mode, setMode] = useState<'openai' | 'llama-server'>('openai')
+  const [mode, setMode] = useState<'openai' | 'llama-server' | 'openrouter'>('openai')
   const [apiUrl, setApiUrl] = useState('http://localhost:11434')
   const [apiKey, setApiKey] = useState('')
   const [modelName, setModelName] = useState('')
@@ -39,6 +39,8 @@ export function ModelSetup() {
 
       const config = mode === 'openai'
         ? { backend: 'openai', apiUrl, apiKey, modelName, contextSize }
+        : mode === 'openrouter'
+        ? { backend: 'openrouter', apiUrl, apiKey, modelName, contextSize }
         : { backend: 'llama-server', modelPath, mmprojPath, contextSize, gpuLayers, localNetwork, apiKey: serveApiKey }
 
       const result = await api.initModel(config)
@@ -95,6 +97,21 @@ export function ModelSetup() {
             API Server
           </button>
           <button
+            onClick={() => { setMode('openrouter'); setApiUrl('https://openrouter.ai/api/v1') }}
+            style={{
+              flex: 1,
+              padding: '10px 16px',
+              borderRadius: 'var(--radius)',
+              border: `1px solid ${mode === 'openrouter' ? 'var(--accent)' : 'var(--border)'}`,
+              background: mode === 'openrouter' ? 'var(--accent)' : 'var(--bg-tertiary)',
+              color: '#fff',
+              fontWeight: 500,
+              fontSize: 14
+            }}
+          >
+            OpenRouter
+          </button>
+          <button
             onClick={() => setMode('llama-server')}
             style={{
               flex: 1,
@@ -111,9 +128,9 @@ export function ModelSetup() {
           </button>
         </div>
 
-        {mode === 'openai' ? (
+        {mode === 'openai' || mode === 'openrouter' ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div>
+            {mode === 'openai' && (<div>
               <label style={labelStyle}>API URL</label>
               <input
                 type="text"
@@ -125,24 +142,37 @@ export function ModelSetup() {
               <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
                 Supports Ollama (11434), LM Studio (1234), llama-server (8080), vLLM, etc.
               </div>
-            </div>
+            </div>)}
+            {mode === 'openrouter' && (<div>
+              <label style={labelStyle}>OpenRouter API URL</label>
+              <input
+                type="text"
+                value={apiUrl}
+                onChange={e => setApiUrl(e.target.value)}
+                placeholder="https://openrouter.ai/api/v1"
+                style={{ ...inputStyle, color: 'var(--accent)' }}
+              />
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                Requires an API key from openrouter.ai/keys
+              </div>
+            </div>)}
             <div>
               <label style={labelStyle}>Model Name</label>
               <input
                 type="text"
                 value={modelName}
                 onChange={e => setModelName(e.target.value)}
-                placeholder="llama3.2, codestral, qwen2.5-coder, etc."
+                placeholder={mode === 'openrouter' ? "google/gemini-2.0-flash-001, anthropic/claude-3.5-sonnet, etc." : "llama3.2, codestral, qwen2.5-coder, etc."}
                 style={inputStyle}
               />
             </div>
             <div>
-              <label style={labelStyle}>API Key (optional)</label>
+              <label style={labelStyle}>API Key {mode === 'openrouter' ? '(required)' : '(optional)'}</label>
               <input
                 type="password"
                 value={apiKey}
                 onChange={e => setApiKey(e.target.value)}
-                placeholder="sk-..."
+                placeholder={mode === 'openrouter' ? "sk-or-v1-..." : "sk-..."}
                 style={inputStyle}
               />
             </div>
@@ -166,18 +196,6 @@ export function ModelSetup() {
               <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
                 Requires llama-server binary in PATH. Download from github.com/ggml-org/llama.cpp
               </div>
-            </div>
-            <div>
-              <label style={labelStyle}>Context Size</label>
-              <input
-                type="number"
-                value={contextSize}
-                onChange={e => setContextSize(Number(e.target.value))}
-                style={inputStyle}
-                min={1024}
-                max={65536}
-                step={1024}
-              />
             </div>
             {mode === 'llama-server' && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
