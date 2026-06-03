@@ -2,6 +2,24 @@ import * as fs from 'fs/promises'
 import * as fsSync from 'fs'
 import * as path from 'path'
 import { execSync } from 'child_process'
+import { checkCommand } from './bash-policy'
+
+let currentWorkspaceDir = ''
+let allowOutsideWorkspace = false
+
+export function setCurrentWorkspaceDir(dir: string): void {
+  currentWorkspaceDir = dir
+}
+
+export function setAllowOutsideWorkspace(val: boolean): void {
+  allowOutsideWorkspace = val
+}
+
+function isPathInsideWorkspace(absPath: string): boolean {
+  if (!currentWorkspaceDir || allowOutsideWorkspace) return true
+  const resolved = path.resolve(absPath)
+  return resolved.startsWith(path.resolve(currentWorkspaceDir))
+}
 
 export interface ToolResult {
   success: boolean
@@ -29,7 +47,9 @@ export const toolRegistry: ToolDefinition[] = [
     },
     execute: async (args) => {
       try {
-        const content = await fs.readFile(args.filePath as string, 'utf-8')
+        const fp = args.filePath as string
+        if (!isPathInsideWorkspace(fp)) return { success: false, error: 'Path is outside workspace directory' }
+        const content = await fs.readFile(fp, 'utf-8')
         return { success: true, data: content }
       } catch (err) {
         return { success: false, error: String(err) }
@@ -49,9 +69,11 @@ export const toolRegistry: ToolDefinition[] = [
     },
     execute: async (args) => {
       try {
-        const dir = path.dirname(args.filePath as string)
+        const fp = args.filePath as string
+        if (!isPathInsideWorkspace(fp)) return { success: false, error: 'Path is outside workspace directory' }
+        const dir = path.dirname(fp)
         await fs.mkdir(dir, { recursive: true })
-        await fs.writeFile(args.filePath as string, args.content as string, 'utf-8')
+        await fs.writeFile(fp, args.content as string, 'utf-8')
         return { success: true, data: 'File written successfully' }
       } catch (err) {
         return { success: false, error: String(err) }
@@ -72,7 +94,8 @@ export const toolRegistry: ToolDefinition[] = [
     },
     execute: async (args) => {
       try {
-        const content = await fs.readFile(args.filePath as string, 'utf-8')
+        const fp = args.filePath as string
+        if (!isPathInsideWorkspace(fp)) return { success: false, error: 'Path is outside workspace directory' }
         const oldStr = args.oldString as string
         const newStr = args.newString as string
         if (!content.includes(oldStr)) {
@@ -99,6 +122,9 @@ export const toolRegistry: ToolDefinition[] = [
     },
     execute: async (args) => {
       try {
+        const cmd = args.command as string
+        const policy = checkCommand(cmd)
+        if (!policy.safe) return { success: false, error: policy.reason }
         const opts: Record<string, unknown> = {
           encoding: 'utf-8',
           maxBuffer: 10 * 1024 * 1024,
@@ -165,6 +191,42 @@ export const toolRegistry: ToolDefinition[] = [
         const msg = String(err)
         if (msg.includes('timed out')) return { success: false, error: 'Search timed out' }
         return { success: true, data: 'No matches found' }
+      }
+    }
+  },
+  {
+    name: 'list_workspace',
+    description: 'List files and directories in the workspace root',
+    parameters: {
+      type: 'object',
+      properties: {
+        subpath: { type: 'string', description: 'Optional subpath relative to workspace (e.g. "src", "src/components")' }
+      }
+    },
+    execute: async (args) => {
+      try {
+        const target = currentWorkspaceDir
+          ? args.subpath
+            ? path.join(currentWorkspaceDir, args.subpath as string)
+            : currentWorkspaceDir
+          : (args.subpath as string) || '.'
+        const entries = await fs.readdir(target, { withFileTypes: true })
+        const listing = entries.map(e => ({
+          name: e.name,
+          type: e.isDirectory() ? 'directory' : 'file',
+          size: e.isFile() ? 0 : undefined
+        }))
+        for (const item of listing) {
+          if (item.type === 'file') {
+            try {
+              const stat = await fs.stat(path.join(target, item.name))
+              item.size = stat.size
+            } catch { }
+          }
+        }
+        return { success: true, data: { workspaceDir: currentWorkspaceDir || null, path: target, contents: listing } }
+      } catch (err) {
+        return { success: false, error: String(err) }
       }
     }
   },

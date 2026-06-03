@@ -6,9 +6,13 @@ declare global {
       selectModelFile: () => Promise<string | null>
       selectWorkspace: () => Promise<string | null>
       initModel: (config: any) => Promise<{ success: boolean; error?: string; config?: any }>
-      chatSend: (data: { text: string; images?: Array<{ mimeType: string; base64: string }>; documents?: Array<{ name: string; content: string; language?: string }> }) => Promise<{ success: boolean; error?: string }>
+      chatSend: (data: { text: string; systemPrompt?: string; workspaceDir?: string | null; images?: Array<{ mimeType: string; base64: string }>; documents?: Array<{ name: string; content: string; language?: string }> }) => Promise<{ success: boolean; error?: string }>
       chatStop: () => Promise<{ success: boolean }>
       chatReset: () => Promise<{ success: boolean }>
+      modelDisconnect: () => Promise<{ success: boolean }>
+      approveTool: (approved: boolean) => Promise<{ success: boolean }>
+      updateWorkspaceDir: (dir: string | null) => Promise<{ success: boolean }>
+      fetchModels: (apiUrl: string, apiKey?: string) => Promise<{ success: boolean; models?: string[]; error?: string }>
       openExternal: (url: string) => Promise<void>
       updateApiUrl: (url: string) => Promise<{ success: boolean; error?: string }>
       toggleLocalNetwork: () => Promise<{ success: boolean; config?: any; error?: string }>

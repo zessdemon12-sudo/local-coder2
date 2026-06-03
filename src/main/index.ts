@@ -29,6 +29,12 @@ function createWindow(): void {
   mainWindow.on('closed', () => {
     mainWindow = null
   })
+
+  mainWindow.webContents.on('before-input-event', (_event, input) => {
+    if (input.key === 'F11' && input.type === 'keyDown') {
+      mainWindow?.setFullScreen(!mainWindow?.isFullScreen())
+    }
+  })
 }
 
 app.whenReady().then(() => {

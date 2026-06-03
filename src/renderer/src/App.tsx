@@ -5,6 +5,7 @@ import { Sidebar } from './components/Sidebar'
 import { SettingsPanel } from './components/SettingsPanel'
 import { ModelSetup } from './components/ModelSetup'
 import { ToolBar } from './components/ToolBar'
+import { ApprovalBar } from './components/ApprovalBar'
 
 function App() {
   const sidebarOpen = useAppStore(s => s.sidebarOpen)
@@ -17,6 +18,12 @@ function App() {
   const setStreamingContent = useAppStore(s => s.setStreamingContent)
   const setIsStreaming = useAppStore(s => s.setIsStreaming)
   const setIsProcessing = useAppStore(s => s.setIsProcessing)
+  const setPendingApproval = useAppStore(s => s.setPendingApproval)
+  const theme = useAppStore(s => s.theme)
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('light-theme', theme === 'light')
+  }, [theme])
 
   useEffect(() => {
     const cleanup = (window as any).electronApi?.onAgentEvent((event: any) => {
@@ -29,6 +36,9 @@ function App() {
           break
         case 'tool_result':
           console.log('Tool result:', event.data)
+          break
+        case 'tool_approval':
+          setPendingApproval(event.data)
           break
         case 'error': {
           const partial = useAppStore.getState().streamingContent
@@ -66,6 +76,7 @@ function App() {
         minWidth: 0
       }}>
         <ToolBar />
+        <ApprovalBar />
         <ChatView />
       </div>
       {showSettings && <SettingsPanel onClose={() => setShowSettings(false)} />}

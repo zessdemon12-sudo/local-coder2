@@ -79,15 +79,25 @@ export function registerIpcHandlers(): void {
     }
   })
 
-  ipcMain.handle('chat-send', async (_event, data: { text: string; images?: Array<{ mimeType: string; base64: string }>; documents?: Array<{ name: string; content: string; language?: string }> }) => {
+  ipcMain.handle('chat-send', async (_event, data: { text: string; systemPrompt?: string; workspaceDir?: string | null; images?: Array<{ mimeType: string; base64: string }>; documents?: Array<{ name: string; content: string; language?: string }> }) => {
     if (!engine) return { success: false, error: 'Model not initialized' }
 
     currentWindow = BrowserWindow.getFocusedWindow()
+
+    if (agent) {
+      agent.stop()
+    }
 
     const mcpTools = mcpManager.getAllTools()
     agent = new AgentLoop(engine, mcpTools, (event: AgentEvent) => {
       currentWindow?.webContents.send('agent-event', event)
     })
+    if (data.systemPrompt) {
+      agent.setSystemPrompt(data.systemPrompt)
+    }
+    if (data.workspaceDir) {
+      agent.setWorkspaceDir(data.workspaceDir)
+    }
 
     agent.start(data).catch(err => {
       currentWindow?.webContents.send('agent-event', { type: 'error', data: String(err) })
@@ -103,9 +113,24 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle('chat-reset', () => {
     agent?.reset()
+    return { success: true }
+  })
+
+  ipcMain.handle('update-workspace-dir', async (_event, dir: string | null) => {
+    if (agent) agent.setWorkspaceDir(dir || '')
+    return { success: true }
+  })
+
+  ipcMain.handle('model-disconnect', () => {
+    agent?.reset()
     engine?.dispose()
     engine = null
     agent = null
+    return { success: true }
+  })
+
+  ipcMain.handle('approve-tool', async (_event, approved: boolean) => {
+    agent?.approveCurrent(approved)
     return { success: true }
   })
 
@@ -152,10 +177,24 @@ export function registerIpcHandlers(): void {
   })
 
   ipcMain.handle('open-external', async (_event, url: string) => {
-    shell.openExternal(url)
+    await shell.openExternal(url)
   })
 
-  // --- TTS handlers ---
+  ipcMain.handle('fetch-models', async (_event, apiUrl: string, apiKey?: string) => {
+    try {
+      const baseUrl = apiUrl || 'http://127.0.0.1:11434'
+      const url = `${baseUrl}/models`
+      const headers: Record<string, string> = {}
+      if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`
+      const res = await fetch(url, { headers })
+      if (!res.ok) return { success: false, error: `HTTP ${res.status}` }
+      const data = await res.json()
+      const models: string[] = (data.data || data.models || []).map((m: any) => m.id || m.name || m.model)
+      return { success: true, models }
+    } catch (err) {
+      return { success: false, error: String(err) }
+    }
+  })
 
   ipcMain.handle('tts-synthesize', async (_event, data: { text: string; modelPath?: string; vocoderPath?: string; backend?: string }) => {
     try {

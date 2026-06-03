@@ -1,4 +1,4 @@
-export type ModelBackend = 'openai' | 'llama-server' | 'openrouter'
+export type ModelBackend = 'openai' | 'llama-server' | 'openrouter' | 'opencode'
 
 export interface ModelConfig {
   backend: ModelBackend
@@ -60,7 +60,10 @@ export class ModelEngine {
     if (this.config.backend === 'llama-server') {
       await this.startLlamaServer()
     } else {
-      const url = `${this.config.apiUrl || 'http://127.0.0.1:11434'}/v1/chat/completions`
+      const baseUrl = this.config.backend === 'opencode'
+        ? (this.config.apiUrl || 'https://opencode.ai/zen/v1')
+        : (this.config.apiUrl || 'http://127.0.0.1:11434')
+      const url = `${baseUrl}/chat/completions`
       const testResp = await fetch(url, {
         method: 'POST',
         headers: {
@@ -175,7 +178,10 @@ export class ModelEngine {
     onToken?: (token: string) => void
   ): Promise<ModelResponse> {
     this.abortController = new AbortController()
-    const urlStr = `${this.config.apiUrl || 'http://127.0.0.1:11434'}/v1/chat/completions`
+    const baseUrl = this.config.backend === 'opencode'
+      ? (this.config.apiUrl || 'https://opencode.ai/zen/v1')
+      : (this.config.apiUrl || 'http://127.0.0.1:11434')
+    const urlStr = `${baseUrl}/chat/completions`
     const url = new URL(urlStr)
 
     const body: Record<string, unknown> = {

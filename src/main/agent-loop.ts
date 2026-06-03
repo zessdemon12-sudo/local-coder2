@@ -1,19 +1,23 @@
 import { ModelEngine, ChatMessage } from './model-engine'
-import { toolRegistry, ToolResult } from './tools/registry'
+import { toolRegistry, ToolResult, setCurrentWorkspaceDir } from './tools/registry'
 
 export interface AgentEvent {
-  type: 'token' | 'tool_call' | 'tool_result' | 'error' | 'done'
+  type: 'token' | 'tool_call' | 'tool_result' | 'tool_approval' | 'error' | 'done'
   data?: unknown
 }
 
 export type AgentEventHandler = (event: AgentEvent) => void
 
-const SYSTEM_PROMPT = `You are a coding assistant that helps users write, edit, and manage code files.
-You have access to tools for reading/writing files, executing commands, and searching code.
-Use the available functions when you need to interact with the file system or run commands.
-After getting a tool result, provide your final response immediately — do not call additional tools unless more information is needed.
-Always explain what you're doing before and after using tools.
-IMPORTANT: Once you have all the information needed to answer the user, stop using tools and provide your final answer.`
+const MAX_SUBAGENT_DEPTH = 5
+let currentDepth = 0
+
+function relativizeResult(content: string, workspaceDir: string): string {
+  if (!workspaceDir) return content
+  const sep = workspaceDir.endsWith('/') || workspaceDir.endsWith('\\') ? '' : '\\'
+  const escaped = workspaceDir.replace(/[/\\]/g, m => m === '\\' ? '\\\\' : '\\/')
+  // replace absolute paths with workspace-relative
+  return content.replace(new RegExp(escaped + '[\\\\/]', 'gi'), './')
+}
 
 interface McpToolRef {
   serverId: string
@@ -30,14 +34,45 @@ export class AgentLoop {
   private maxIterations = 20
   private mcpTools: McpToolRef[] = []
 
+  private systemPromptOverride = ''
+  private systemPromptInjected = false
+  private workspaceDir = ''
+  private workspaceInjected = false
+
+  private pendingApproval: { resolve: (approved: boolean) => void } | null = null
+
+  approveCurrent(approved: boolean): void {
+    if (this.pendingApproval) {
+      this.pendingApproval.resolve(approved)
+      this.pendingApproval = null
+    }
+  }
+
   constructor(engine: ModelEngine, mcpTools: McpToolRef[], onEvent: AgentEventHandler) {
     this.engine = engine
     this.mcpTools = mcpTools
     this.onEvent = onEvent
   }
 
+  setSystemPrompt(prompt: string): void {
+    this.systemPromptOverride = prompt
+    this.systemPromptInjected = false
+  }
+
+  setWorkspaceDir(dir: string): void {
+    this.workspaceDir = dir
+    this.workspaceInjected = false
+    setCurrentWorkspaceDir(dir)
+  }
+
   async start(input: string | { text: string; images?: Array<{ mimeType: string; base64: string }>; documents?: Array<{ name: string; content: string; language?: string }> }): Promise<void> {
     if (this.running) return
+    if (currentDepth >= MAX_SUBAGENT_DEPTH) {
+      this.onEvent({ type: 'error', data: 'Max subagent recursion depth reached' })
+      this.onEvent({ type: 'done' })
+      return
+    }
+    currentDepth++
     this.running = true
 
     const userText = typeof input === 'string' ? input : input.text
@@ -45,7 +80,17 @@ export class AgentLoop {
     const userDocuments = typeof input === 'string' ? undefined : input.documents
 
     if (this.messages.length === 0) {
-      this.messages.push({ role: 'system', content: SYSTEM_PROMPT })
+      if (this.systemPromptOverride) {
+        this.messages.push({ role: 'system', content: this.systemPromptOverride })
+        this.systemPromptInjected = true
+      } else {
+        this.messages.push({ role: 'system', content: 'You are an AI assistant with access to tools.' })
+      }
+    }
+    if (this.workspaceDir && !this.workspaceInjected) {
+      const toolNames = toolRegistry.map(t => t.name).sort().join(', ')
+      this.messages.push({ role: 'system', content: `The user's workspace directory is: ${this.workspaceDir}. Use this as the base path for file operations. Available tools: ${toolNames}.` })
+      this.workspaceInjected = true
     }
     const userMsg: ChatMessage = { role: 'user', content: userText }
     if (userImages?.length) userMsg.images = userImages
@@ -105,15 +150,33 @@ export class AgentLoop {
           const localTool = toolRegistry.find(t => t.name === toolCall.name)
           if (localTool) {
             let result: ToolResult
+            if ((toolCall.name === 'write_file' || toolCall.name === 'edit_file') && this.workspaceDir) {
+              this.onEvent({
+                type: 'tool_approval',
+                data: { tool: toolCall.name, args: toolCall.arguments, workspace: this.workspaceDir }
+              })
+              const approved = await new Promise<boolean>((resolve) => {
+                this.pendingApproval = { resolve }
+              })
+              if (!approved) {
+                result = { success: false, error: 'User rejected tool execution' }
+                this.messages.push({
+                  role: 'user',
+                  content: `[Tool ${toolCall.name} rejected by user]`
+                })
+                continue
+              }
+            }
             try {
               result = await localTool.execute(toolCall.arguments)
             } catch (err) {
               result = { success: false, error: String(err) }
             }
             this.onEvent({ type: 'tool_result', data: { tool: toolCall.name, result } })
+            const resultStr = JSON.stringify(result)
             this.messages.push({
               role: 'user',
-              content: `[Tool ${toolCall.name} result]: ${JSON.stringify(result)}`
+              content: `[Tool ${toolCall.name} result]: ${relativizeResult(resultStr, this.workspaceDir)}`
             })
             continue
           }
@@ -128,9 +191,10 @@ export class AgentLoop {
               mcpResult = { success: false, error: String(err) }
             }
             this.onEvent({ type: 'tool_result', data: { tool: toolCall.name, result: mcpResult } })
+            const mcpStr = JSON.stringify(mcpResult)
             this.messages.push({
               role: 'user',
-              content: `[MCP Tool ${toolCall.name} result]: ${JSON.stringify(mcpResult)}`
+              content: `[MCP Tool ${toolCall.name} result]: ${relativizeResult(mcpStr, this.workspaceDir)}`
             })
             continue
           }
@@ -144,16 +208,20 @@ export class AgentLoop {
     }
 
     this.running = false
+    currentDepth = Math.max(0, currentDepth - 1)
     this.onEvent({ type: 'done' })
   }
 
   stop(): void {
     this.running = false
+    currentDepth = Math.max(0, currentDepth - 1)
     this.engine.stop()
   }
 
   reset(): void {
     this.messages = []
     this.running = false
+    this.systemPromptInjected = false
+    this.workspaceInjected = false
   }
 }

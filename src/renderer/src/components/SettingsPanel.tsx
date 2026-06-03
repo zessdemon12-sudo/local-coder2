@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useAppStore } from '../store/chat-store'
+import { useAppStore, DEFAULT_SYSTEM_PROMPT } from '../store/chat-store'
 import { ModelDownloaderView } from './ModelDownloader'
 
 interface McpServerInfo {
@@ -15,6 +15,7 @@ interface SettingsPanelProps {
 
 function McpConfig() {
   const [servers, setServers] = useState<McpServerInfo[]>([])
+  const [tools, setTools] = useState<Array<{ serverId: string; name: string; description?: string }>>([])
   const [name, setName] = useState('')
   const [cmd, setCmd] = useState('')
   const [args, setArgs] = useState('')
@@ -24,8 +25,12 @@ function McpConfig() {
   const load = async () => {
     try {
       const api = (window as any).electronApi
-      const res = await api.mcpGetServers()
+      const [res, toolsRes] = await Promise.all([
+        api.mcpGetServers(),
+        api.mcpGetTools()
+      ])
       if (res.success) setServers(res.servers || [])
+      if (toolsRes.success) setTools(toolsRes.tools || [])
     } catch { }
   }
 
@@ -77,19 +82,40 @@ function McpConfig() {
           marginBottom: 6,
           borderRadius: 'var(--radius)',
           border: '1px solid var(--border)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between'
+          background: 'var(--bg-secondary)'
         }}>
-          <div>
-            <div style={{ fontSize: 13, fontWeight: 500 }}>{s.name}</div>
-            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{s.command} {s.args.join(' ')}</div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 500 }}>{s.name}</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{s.command} {s.args.join(' ')}</div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{
+                width: 8, height: 8, borderRadius: '50%',
+                background: 'var(--success)', display: 'inline-block'
+              }} />
+              <button onClick={() => handleRemove(s.id)}
+                style={{
+                  background: 'none', border: 'none', color: 'var(--danger)',
+                  fontSize: 12, cursor: 'pointer', padding: '2px 6px'
+                }}>Remove</button>
+            </div>
           </div>
-          <button onClick={() => handleRemove(s.id)}
-            style={{
-              background: 'none', border: 'none', color: 'var(--danger)',
-              fontSize: 12, cursor: 'pointer', padding: '2px 6px'
-            }}>Remove</button>
+          {tools.filter(t => t.serverId === s.id).length > 0 && (
+            <div style={{ marginTop: 6, paddingTop: 6, borderTop: '1px solid var(--border-light)' }}>
+              <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>
+                Tools ({tools.filter(t => t.serverId === s.id).length})
+              </div>
+              {tools.filter(t => t.serverId === s.id).map(t => (
+                <div key={t.name} style={{
+                  fontSize: 11, color: 'var(--text-secondary)', padding: '2px 0'
+                }}>
+                  <span style={{ color: 'var(--accent)' }}>{t.name}</span>
+                  {t.description && <span style={{ color: 'var(--text-muted)', marginLeft: 4 }}>— {t.description}</span>}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       ))}
 
@@ -306,6 +332,12 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
   const setModelStatus = useAppStore(s => s.setModelStatus)
   const editorPreference = useAppStore(s => s.editorPreference)
   const setEditorPreference = useAppStore(s => s.setEditorPreference)
+  const systemPrompt = useAppStore(s => s.systemPrompt)
+  const setSystemPrompt = useAppStore(s => s.setSystemPrompt)
+  const theme = useAppStore(s => s.theme)
+  const setTheme = useAppStore(s => s.setTheme)
+  const fastInput = useAppStore(s => s.fastInput)
+  const setFastInput = useAppStore(s => s.setFastInput)
   const [apiUrlInput, setApiUrlInput] = useState(modelStatus.config?.apiUrl || '')
   const [apiUrlSaved, setApiUrlSaved] = useState(false)
   const [networkToggling, setNetworkToggling] = useState(false)
@@ -319,7 +351,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
 
   const handleDisconnect = () => {
     const api = (window as any).electronApi
-    api?.chatReset()
+    api?.modelDisconnect()
     setModelStatus({ loaded: false, loading: false, error: null, config: null })
     onClose()
   }
@@ -562,6 +594,130 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
                   ? 'Monaco Editor (VS Code) with diff view'
                   : 'CodeMirror 6 with syntax highlighting'}
               </div>
+            </div>
+            <div>
+              <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, color: 'var(--text-primary)' }}>
+                Theme
+              </h3>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  onClick={() => setTheme('dark')}
+                  style={{
+                    flex: 1,
+                    padding: '6px 12px',
+                    borderRadius: 'var(--radius)',
+                    border: theme === 'dark' ? '1px solid var(--accent)' : '1px solid var(--border)',
+                    background: theme === 'dark' ? 'rgba(99,102,241,0.1)' : 'transparent',
+                    color: theme === 'dark' ? 'var(--accent)' : 'var(--text-secondary)',
+                    fontSize: 12,
+                    cursor: 'pointer'
+                  }}
+                >
+                  Dark
+                </button>
+                <button
+                  onClick={() => setTheme('light')}
+                  style={{
+                    flex: 1,
+                    padding: '6px 12px',
+                    borderRadius: 'var(--radius)',
+                    border: theme === 'light' ? '1px solid var(--accent)' : '1px solid var(--border)',
+                    background: theme === 'light' ? 'rgba(99,102,241,0.1)' : 'transparent',
+                    color: theme === 'light' ? 'var(--accent)' : 'var(--text-secondary)',
+                    fontSize: 12,
+                    cursor: 'pointer'
+                  }}
+                >
+                  Light
+                </button>
+              </div>
+            </div>
+            <div>
+              <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, color: 'var(--text-primary)' }}>
+                Input
+              </h3>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <button
+                  onClick={() => setFastInput(!fastInput)}
+                  style={{
+                    width: 40, height: 22, borderRadius: 11,
+                    border: fastInput ? '1px solid var(--accent)' : '1px solid var(--border)',
+                    background: fastInput ? 'var(--accent)' : 'var(--bg-tertiary)',
+                    cursor: 'pointer', position: 'relative', transition: 'background 0.2s'
+                  }}
+                >
+                  <span style={{
+                    position: 'absolute', top: 2, width: 16, height: 16,
+                    borderRadius: '50%', background: '#fff',
+                    left: fastInput ? 22 : 2, transition: 'left 0.2s'
+                  }} />
+                </button>
+                <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                  Fast input mode (auto-submit on Enter without Shift)
+                </span>
+              </div>
+            </div>
+            <div>
+              <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, color: 'var(--text-primary)' }}>
+                Cache
+              </h3>
+              <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                <span>Chat history and system prompt stored in localStorage</span>
+              </div>
+              <button onClick={() => { localStorage.clear(); window.location.reload() }} style={{
+                marginTop: 6,
+                padding: '4px 10px',
+                borderRadius: 'var(--radius)',
+                border: '1px solid var(--danger)',
+                background: 'transparent',
+                color: 'var(--danger)',
+                fontSize: 11,
+                cursor: 'pointer'
+              }}>
+                Clear all cache & reload
+              </button>
+            </div>
+            <div>
+              <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, color: 'var(--text-primary)' }}>
+                System Prompt
+              </h3>
+              <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8 }}>
+                Custom system prompt sent with every chat message. Controls the AI's behavior and capabilities.
+              </p>
+              <textarea
+                value={systemPrompt}
+                onChange={e => setSystemPrompt(e.target.value)}
+                rows={8}
+                style={{
+                  width: '100%',
+                  padding: '8px 10px',
+                  borderRadius: 'var(--radius)',
+                  border: '1px solid var(--border)',
+                  background: 'var(--bg-tertiary)',
+                  color: 'var(--text-primary)',
+                  fontSize: 12,
+                  fontFamily: 'var(--font-mono)',
+                  resize: 'vertical',
+                  outline: 'none',
+                  boxSizing: 'border-box',
+                  lineHeight: 1.5
+                }}
+              />
+              <button
+                onClick={() => setSystemPrompt(DEFAULT_SYSTEM_PROMPT)}
+                style={{
+                  marginTop: 6,
+                  padding: '4px 10px',
+                  borderRadius: 'var(--radius)',
+                  border: '1px solid var(--border)',
+                  background: 'var(--bg-tertiary)',
+                  color: 'var(--text-muted)',
+                  fontSize: 11,
+                  cursor: 'pointer'
+                }}
+              >
+                Reset to default
+              </button>
             </div>
           </div>
         ) : tab === 'models' ? (

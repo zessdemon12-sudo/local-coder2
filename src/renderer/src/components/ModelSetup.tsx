@@ -3,7 +3,7 @@ import { useAppStore } from '../store/chat-store'
 
 export function ModelSetup() {
   const setModelStatus = useAppStore(s => s.setModelStatus)
-  const [mode, setMode] = useState<'openai' | 'llama-server' | 'openrouter'>('openai')
+  const [mode, setMode] = useState<'openai' | 'llama-server' | 'openrouter' | 'opencode'>('openai')
   const [apiUrl, setApiUrl] = useState('http://localhost:11434')
   const [apiKey, setApiKey] = useState('')
   const [modelName, setModelName] = useState('')
@@ -15,6 +15,8 @@ export function ModelSetup() {
   const [serveApiKey, setServeApiKey] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [availableModels, setAvailableModels] = useState<string[]>([])
+  const [fetchingModels, setFetchingModels] = useState(false)
 
   const handleSelectFile = async () => {
     const api = (window as any).electronApi
@@ -41,6 +43,8 @@ export function ModelSetup() {
         ? { backend: 'openai', apiUrl, apiKey, modelName, contextSize }
         : mode === 'openrouter'
         ? { backend: 'openrouter', apiUrl, apiKey, modelName, contextSize }
+        : mode === 'opencode'
+        ? { backend: 'opencode', apiUrl, apiKey, modelName, contextSize }
         : { backend: 'llama-server', modelPath, mmprojPath, contextSize, gpuLayers, localNetwork, apiKey: serveApiKey }
 
       const result = await api.initModel(config)
@@ -126,9 +130,24 @@ export function ModelSetup() {
           >
             Direct GGUF
           </button>
+          <button
+            onClick={() => { setMode('opencode'); setApiUrl('https://opencode.ai/zen/v1') }}
+            style={{
+              flex: 1,
+              padding: '10px 16px',
+              borderRadius: 'var(--radius)',
+              border: `1px solid ${mode === 'opencode' ? 'var(--accent)' : 'var(--border)'}`,
+              background: mode === 'opencode' ? 'var(--accent)' : 'var(--bg-tertiary)',
+              color: '#fff',
+              fontWeight: 500,
+              fontSize: 14
+            }}
+          >
+            OpenCode
+          </button>
         </div>
 
-        {mode === 'openai' || mode === 'openrouter' ? (
+        {mode === 'openai' || mode === 'openrouter' || mode === 'opencode' ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {mode === 'openai' && (<div>
               <label style={labelStyle}>API URL</label>
@@ -156,23 +175,79 @@ export function ModelSetup() {
                 Requires an API key from openrouter.ai/keys
               </div>
             </div>)}
-            <div>
-              <label style={labelStyle}>Model Name</label>
+            {mode === 'opencode' && (<div>
+              <label style={labelStyle}>OpenCode Zen API URL</label>
               <input
                 type="text"
-                value={modelName}
-                onChange={e => setModelName(e.target.value)}
-                placeholder={mode === 'openrouter' ? "google/gemini-2.0-flash-001, anthropic/claude-3.5-sonnet, etc." : "llama3.2, codestral, qwen2.5-coder, etc."}
-                style={inputStyle}
+                value={apiUrl}
+                onChange={e => setApiUrl(e.target.value)}
+                placeholder="https://opencode.ai/zen/v1"
+                style={{ ...inputStyle, color: 'var(--accent)' }}
               />
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                API key from opencode.ai/auth. Models: deepseek-v4-flash, gpt-5.4-mini, claude-sonnet-4-6, etc.
+              </div>
+            </div>)}
+            <div>
+              <label style={labelStyle}>Model Name</label>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input
+                  type="text"
+                  value={modelName}
+                  onChange={e => setModelName(e.target.value)}
+                  placeholder={mode === 'openrouter' ? "google/gemini-2.0-flash-001, anthropic/claude-3.5-sonnet, etc." : mode === 'opencode' ? "deepseek-v4-flash, gpt-5.4-mini, claude-sonnet-4-6" : "llama3.2, codestral, qwen2.5-coder, etc."}
+                  style={{ ...inputStyle, flex: 1 }}
+                />
+                <button onClick={async () => {
+                  setFetchingModels(true)
+                  try {
+                    const api = (window as any).electronApi
+                    const res = await api.fetchModels(apiUrl, apiKey)
+                    if (res.success && res.models) {
+                      setAvailableModels(res.models)
+                    }
+                  } finally {
+                    setFetchingModels(false)
+                  }
+                }} style={{
+                  padding: '8px 12px',
+                  borderRadius: 'var(--radius)',
+                  border: '1px solid var(--border)',
+                  background: 'var(--bg-tertiary)',
+                  color: 'var(--text-secondary)',
+                  fontSize: 12,
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap'
+                }}>
+                  {fetchingModels ? 'Fetching...' : 'Fetch'}
+                </button>
+              </div>
+              {availableModels.length > 0 && (
+                <div style={{
+                  marginTop: 6, maxHeight: 120, overflow: 'auto',
+                  border: '1px solid var(--border)', borderRadius: 'var(--radius)',
+                  background: 'var(--bg-tertiary)'
+                }}>
+                  {availableModels.map(m => (
+                    <div key={m}
+                      onClick={() => setModelName(m)}
+                      style={{
+                        padding: '4px 8px', fontSize: 12, cursor: 'pointer',
+                        color: 'var(--text-secondary)',
+                        borderBottom: '1px solid var(--border-light)'
+                      }}
+                    >{m}</div>
+                  ))}
+                </div>
+              )}
             </div>
             <div>
-              <label style={labelStyle}>API Key {mode === 'openrouter' ? '(required)' : '(optional)'}</label>
+              <label style={labelStyle}>API Key {mode === 'openrouter' || mode === 'opencode' ? '(required)' : '(optional)'}</label>
               <input
                 type="password"
                 value={apiKey}
                 onChange={e => setApiKey(e.target.value)}
-                placeholder={mode === 'openrouter' ? "sk-or-v1-..." : "sk-..."}
+                placeholder={mode === 'openrouter' ? "sk-or-v1-..." : mode === 'opencode' ? "oc_..." : "sk-..."}
                 style={inputStyle}
               />
             </div>

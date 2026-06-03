@@ -32,6 +32,9 @@ export function ChatInput() {
   const isStreaming = useAppStore(s => s.isStreaming)
   const isProcessing = useAppStore(s => s.isProcessing)
   const setStreamingContent = useAppStore(s => s.setStreamingContent)
+  const systemPrompt = useAppStore(s => s.systemPrompt)
+  const workspaceDir = useAppStore(s => s.workspaceDir)
+  const fastInput = useAppStore(s => s.fastInput)
   const textRef = useRef<HTMLTextAreaElement>(null)
   const imageFileRef = useRef<HTMLInputElement>(null)
   const docFileRef = useRef<HTMLInputElement>(null)
@@ -53,7 +56,7 @@ export function ChatInput() {
 
     try {
       const api = (window as any).electronApi
-      await api.chatSend({ text, images, documents })
+      await api.chatSend({ text, systemPrompt, workspaceDir, images, documents })
     } catch (err) {
       addMessage({ role: 'system', content: `Error: ${String(err)}` })
       setIsStreaming(false)
@@ -69,7 +72,7 @@ export function ChatInput() {
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === 'Enter' && (fastInput || !e.shiftKey)) {
       e.preventDefault()
       handleSend()
     }
@@ -176,12 +179,51 @@ export function ChatInput() {
   const hasAttachments = pendingImages.length > 0 || pendingDocuments.length > 0
   const canSend = input.trim().length > 0 || hasAttachments
 
+  const [dragOver, setDragOver] = useState(false)
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    setDragOver(true)
+  }
+
+  const handleDragLeave = () => setDragOver(false)
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    setDragOver(false)
+    const files = Array.from(e.dataTransfer.files)
+    for (const file of files) {
+      if (file.type.startsWith('image/')) {
+        const reader = new FileReader()
+        reader.onload = () => {
+          const result = reader.result as string
+          const base64 = result.split(',')[1]
+          setPendingImages(prev => [...prev, { mimeType: file.type, base64, preview: result }])
+        }
+        reader.readAsDataURL(file)
+      } else {
+        const reader = new FileReader()
+        reader.onload = () => {
+          const content = reader.result as string
+          const language = langFromName(file.name)
+          setPendingDocuments(prev => [...prev, { name: file.name, content, language }])
+        }
+        reader.readAsText(file)
+      }
+    }
+  }
+
   return (
     <div style={{
       padding: '12px 16px',
       borderTop: '1px solid var(--border)',
-      background: 'var(--bg-secondary)'
-    }}>
+      background: dragOver ? 'var(--bg-hover)' : 'var(--bg-secondary)',
+      transition: 'background 0.15s'
+    }}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
       {hasAttachments && (
         <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
           {pendingDocuments.map((doc, i) => (
