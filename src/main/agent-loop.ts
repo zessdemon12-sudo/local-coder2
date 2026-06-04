@@ -1,5 +1,7 @@
 import { ModelEngine, ChatMessage } from './model-engine'
 import { toolRegistry, ToolResult, setCurrentWorkspaceDir } from './tools/registry'
+import * as fs from 'fs/promises'
+import * as path from 'path'
 
 export interface AgentEvent {
   type: 'token' | 'tool_call' | 'tool_result' | 'tool_approval' | 'error' | 'done'
@@ -89,7 +91,28 @@ export class AgentLoop {
     }
     if (this.workspaceDir && !this.workspaceInjected) {
       const toolNames = toolRegistry.map(t => t.name).sort().join(', ')
-      this.messages.push({ role: 'system', content: `The user's workspace directory is: ${this.workspaceDir}. Use this as the base path for file operations. Available tools: ${toolNames}.` })
+      let analysis = `The user's workspace directory is: ${this.workspaceDir}. Use this as the base path for file operations. Available tools: ${toolNames}.`
+      try {
+        const entries = await fs.readdir(this.workspaceDir, { withFileTypes: true })
+        const files = entries.filter(e => e.isFile()).map(e => e.name)
+        const dirs = entries.filter(e => e.isDirectory()).map(e => e.name)
+        const projectFiles = files.filter(f => /^package\.json|^Cargo\.toml|^pyproject\.toml|^go\.mod|^Gemfile|^build\.gradle|^pom\.xml|^project\.clj|^dune-project|^Makefile|^CMakeLists\.txt|^mix\.exs|^rebar\.config|^composer\.json|^README\.md|^readme\.md|^.gitignore|^Dockerfile|^docker-compose\.yml|^docker-compose\.yaml|^\.env\.example|^tsconfig\.json|^webpack\.config\.js|^vite\.config\.ts|^next\.config\.js|^nuxt\.config\.ts$/i.test(f))
+        let rootInfo = `\n\nWorkspace root has ${files.length} files and ${dirs.length} subdirectories.`
+        if (projectFiles.length > 0) {
+          rootInfo += `\nKey project files: ${projectFiles.join(', ')}`
+          for (const pf of projectFiles.slice(0, 3)) {
+            if (pf === 'package.json' || pf === 'Cargo.toml' || pf === 'pyproject.toml' || pf === 'go.mod') {
+              try {
+                const content = await fs.readFile(path.join(this.workspaceDir, pf), 'utf-8')
+                rootInfo += `\n\n--- ${pf} ---\n${content.slice(0, 2000)}`
+              } catch {}
+            }
+          }
+        }
+        if (dirs.length > 0) rootInfo += `\n\nTop-level directories: ${dirs.join(', ')}`
+        analysis += rootInfo
+      } catch {}
+      this.messages.push({ role: 'system', content: analysis })
       this.workspaceInjected = true
     }
     const userMsg: ChatMessage = { role: 'user', content: userText }
